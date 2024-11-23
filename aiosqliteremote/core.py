@@ -149,6 +149,7 @@ class Connection(Thread):
     async def _connect(self) -> "Connection":
         """Connect to the actual sqlite database."""
 
+        self._connection = await self._connector()
         # if self._connection is None:
         #     try:
         #         future = asyncio.get_event_loop().create_future()
@@ -159,7 +160,7 @@ class Connection(Thread):
         #         self._connection = None
         #         raise
 
-        # return self
+        return self
         
 
     def __await__(self) -> Generator[Any, None, "Connection"]:
@@ -260,6 +261,7 @@ class Connection(Thread):
         by SQLite 3.8.3 or higher, ``NotSupportedError`` will be raised if used with
         older versions.
         """
+        assert False
         await self._execute(
             self._conn.create_function,
             name,
@@ -628,7 +630,22 @@ class RemoteSqliteConnection:
     def __init__(self, loc, **kwargs):
         # Create an internal sqlite3.Connection instance
         #self._conn = sqlite3.connect(loc, **kwargs)
+    
         pass
+
+    async def connect(self):
+        await asyncio.sleep(1)
+        #TODO: host should come from connection string
+        #port: 8888
+        
+        host = "localhost"
+        port = 8888
+
+        # TODO: find a proper way to connect
+        # probably needs a change in 
+        self.rsclient = aiorpcx.connect_rs(host, port)
+        self._transport, self.protocol = await self.rsclient.create_connection()
+        self.session = self.protocol.session
 
     # Wrap `cursor` method
     def cursor(self):
@@ -647,8 +664,10 @@ class RemoteSqliteConnection:
         pass
     
     # Wrap `close` method
-    def close(self):
+    async def close(self):
         #return self._conn.close()
+        await self.session.close()
+        assert False
         pass
     
     # Wrap `execute` method
@@ -719,7 +738,7 @@ def connect(
             DeprecationWarning,
         )
 
-    def connector() -> sqlite3.Connection:
+    async def connector() -> sqlite3.Connection:
         if isinstance(database, str):
             loc = database
         elif isinstance(database, bytes):
@@ -730,6 +749,7 @@ def connect(
         # This isn't AsyncRPCConnection but simple
         # RemoteSqliteConnection
         rpc_connection_handle = RemoteSqliteConnection(loc, **kwargs) #AsyncRPCConnection(loc, **kwargs)
+        await rpc_connection_handle.connect()
         return rpc_connection_handle #sqlite3.connect(loc, **kwargs)
 
     # don't know why we need Connection and connector
